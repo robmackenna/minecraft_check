@@ -10,18 +10,20 @@ import os
 
 # Function to parse syslog entries
 def parse_syslog_entry(entry):
-    # Regular expression to match date and time format in syslog entry
-    date_regex = r'^\w{3}\s+\d{1,2}'
-    date_match = re.match(date_regex, entry)
+    # Regular expression to match timestamp format
+    timestamp_regex = r'^\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}'
+    timestamp_match = re.match(timestamp_regex, entry)
 
-    if date_match:
-        date_str = date_match.group(0)
-        # Convert date string to datetime object
-        entry_date = datetime.strptime(date_str, '%b %d')
+    if timestamp_match:
+        timestamp_str = timestamp_match.group(0)
+        # Append current year to the timestamp string
+        timestamp_str += f' {datetime.now().year}'
+        # Convert timestamp string to datetime object
+        timestamp = datetime.strptime(timestamp_str, '%b %d %H:%M:%S %Y')
 
-        # Check if the entry date is yesterday's date
-        yesterday = datetime.now() - timedelta(days=1)
-        if entry_date.month == yesterday.month and entry_date.day == yesterday.day:
+        # Check if the timestamp is within the last 24 hours
+        last_24_hours = datetime.now() - timedelta(hours=24)
+        if timestamp >= last_24_hours:
             # Check if the entry contains the word "game"
             if 'game' in entry.lower():
                 return entry.strip()  # Return the entry
@@ -44,12 +46,9 @@ def parse_syslog_file(file_path):
 
 # Function to send email
 def send_email(email_body, sender_email, receiver_email, password):
-    # Get yesterday's date
-    yesterday_date = (datetime.now() - timedelta(days=1)).strftime('%b %d')
-
     # Create the email message
     message = MIMEText(email_body)
-    message['Subject'] = f'Minecraft Activity Report from {yesterday_date}'
+    message['Subject'] = 'Minecraft Activity Report for the Last 24 Hours'
     message['From'] = sender_email
     message['To'] = receiver_email
 
@@ -57,7 +56,7 @@ def send_email(email_body, sender_email, receiver_email, password):
     server = smtplib.SMTP('smtp.gmail.com', 587)
     server.starttls()
     server.login(sender_email, password)
-    
+
     # Send the email
     server.sendmail(sender_email, receiver_email, message.as_string())
 
@@ -65,7 +64,7 @@ def send_email(email_body, sender_email, receiver_email, password):
     server.quit()
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(description='Parse syslog files for Minecraft activity and optionally send an email report.')
+parser = argparse.ArgumentParser(description='Parse syslog files for Minecraft activity in the last 24 hours and send an email report.')
 parser.add_argument('--no-email', action='store_true', help='Print the email body to the console instead of sending the email')
 args = parser.parse_args()
 
@@ -82,14 +81,12 @@ receiver_email = config.get('Email', 'receiver_email')
 password = config.get('Email', 'password')
 
 # Paths to syslog files
-syslog_paths = ['/var/log/syslog', '/var/log/syslog.1']
+syslog_paths = ['/var/log/syslog.1', '/var/log/syslog']
 
 # Parse each syslog file
 email_body = ""
 for path in syslog_paths:
     entries = parse_syslog_file(path)
-    # Sort entries from oldest to newest
-    entries.sort(key=lambda x: datetime.strptime(re.match(r'^\w{3}\s+\d{1,2}', x).group(0), '%b %d'))
     email_body += "\n".join(entries) + "\n\n"
 
 # Check if the --no-email option is provided
