@@ -53,10 +53,11 @@ def send_email(email_body, sender_email, receiver_email, password):
     message['From'] = sender_email
     message['To'] = receiver_email
 
-    # Connect to the Gmail SMTP server
-    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+    # Connect to the Gmail SMTP server with TLS encryption
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.starttls()
     server.login(sender_email, password)
-
+    
     # Send the email
     server.sendmail(sender_email, receiver_email, message.as_string())
 
